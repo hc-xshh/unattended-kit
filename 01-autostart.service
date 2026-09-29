@@ -1,0 +1,39 @@
+# 第 1 件事：开机就起（systemd 服务模板）
+#
+# 装法：
+#   sudo cp 01-autostart.service /etc/systemd/system/myjob.service
+#   改掉下面的 User / WorkingDirectory / ExecStart（指向你自己的脚本）
+#   sudo systemctl daemon-reload && sudo systemctl enable --now myjob
+#
+# 验证（三件事都要看）：
+#   systemctl status myjob            # Active: active (running)
+#   sudo systemctl restart myjob      # 手动重启不报错
+#   sudo reboot                       # 重启之后它自己回来（这才是真验证）
+
+[Unit]
+Description=我的 7x24 常驻任务
+After=network-online.target
+Wants=network-online.target
+
+# 关键点 1：把「连续失败次数上限」关掉。
+# 默认 systemd 在短时间连续启动失败 5 次后会放弃并进入 failed 状态——
+# 对联网类任务来说，往往只是启动瞬间没网，放弃才是真正的故障。
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=你的用户名
+Group=你的用户名
+WorkingDirectory=/home/你的用户名
+ExecStart=/usr/bin/python3 /home/你的用户名/bin/myjob.py
+# 关键点 2：Restart=always —— 不是「启动一次」，是「只要它没了，就再起来」
+Restart=always
+RestartSec=5
+# 关键点 3：日志进 journald，用 journalctl -u myjob -f 看，别自己往 /tmp 里写
+StandardOutput=journal
+StandardError=journal
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
